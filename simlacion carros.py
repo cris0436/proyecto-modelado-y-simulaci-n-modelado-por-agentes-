@@ -62,7 +62,9 @@ class Camino:
 
     def agregar_carros_random(self, cantidad:int):
         if cantidad > self.largo * self.carriles:
+            
             raise Exception("Cantidad de carros excede la capacidad del camino")
+        
         for _ in range(cantidad):
             while True:
                 carril = random.randint(0, self.carriles - 1)
@@ -353,9 +355,19 @@ class CarroMovimiento(Carro):
         distancia_segura = self.velocidades_distancias(self.velocidad_actual)
 
         if espacios_libres >= distancia_segura:
-            self.aumentar_velocidad()
-            distancia_movimiento = min(self.velocidad_actual, espacios_libres)
-            self.mover_adelante(distancia_movimiento)
+            if random.random() < 0.5: # emular dos formas de conducir y de 
+                self.aumentar_velocidad()
+                distancia_movimiento = min(self.velocidad_actual, espacios_libres)
+                self.mover_adelante(distancia_movimiento)
+            else:
+                distancia_movimiento = 0
+                if self.velocidad_actual > espacios_libres-distancia_segura:
+                    self.disminuir_velocidad(espacios_libres-distancia_segura)
+                    distancia_movimiento = espacios_libres-distancia_segura
+                else:
+                    self.aumentar_velocidad()
+                    distancia_movimiento = min(self.velocidad_actual, espacios_libres)
+                    self.mover_adelante(distancia_movimiento)
 
         elif derecha > espacios_libres or izquierda > espacios_libres:
             if derecha > izquierda and derecha > espacios_libres:
@@ -441,28 +453,22 @@ def construir_ciudad_inicial():
     ciudad = Ciudad()
 
     camino1 = Camino(largo=10, carriles=2, velocida_maxima=2,nombre="Carretera principal")
-    camino2 = Camino(largo=7, carriles=2, velocida_maxima=3,nombre="Camino secundaria")
-    camino3 = Camino(largo=6, carriles=1, velocida_maxima=2)
+    camino2 = Camino(largo=7, carriles=2, velocida_maxima=2,nombre="Camino secundaria")
+    camino3 = Camino(largo=6, carriles=1, velocida_maxima=3)
 
     # Enlaces (como tenías)
     camino1.agregar_camino(camino2)
     camino1.agregar_camino(camino3)
     camino3.agregar_camino(camino1)
     camino2.agregar_camino(camino1)
-   
 
     ciudad.agregar_camino(camino1)
     ciudad.agregar_camino(camino2)
     ciudad.agregar_camino(camino3)
     
-    
     carro=CarroMarca(camino1)
 
-    # Población inicial (igual a tu estilo)
-    
-    #CarroDescompuesto(camino1,[0,6])
-
-    camino1.agregar_carros_random(19)
+    camino1.agregar_carros_random(9)
     camino2.agregar_carros_deportivos_random(3)
 
 
@@ -664,9 +670,14 @@ def main(page: ft.Page):
         nonlocal loop_activo
         while loop_activo:
             mi_ciudad.mover_todos_carros()
+
+            """for i in  mi_ciudad.caminos:
+                i.agregar_carro(CarroMovimiento(i))  # Intentar agregar un carro nuevo
+                break  # Añadir un carro nuevo al camino principal"""
             actualizar_ui_movimientos()
             actualizar_stats()
             page.update()
+
             await asyncio.sleep(0.28)
 
     # ------------------------------------------------
