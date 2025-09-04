@@ -1,7 +1,7 @@
 import flet as ft
 import asyncio
 from datetime import datetime
-from modelo import *
+from condifiones_iniciales import construir_ciudad_inicial
 
 # ==============================
 #   UI (Flet) con animaciones
@@ -16,72 +16,39 @@ def grid_to_px(carril, columna):
     top = carril * TAM_CELDA + PADDING
     return left, top
 
-def construir_ciudad_inicial():
-    """Crea una ciudad de ejemplo (puedes ajustar libremente)"""
-    ciudad = Ciudad()
+import flet as ft
+import asyncio
+from datetime import datetime
 
-    camino1 = Camino(largo=10, carriles=2, velocida_maxima=2,nombre="Carretera principal")
-    camino2 = Camino(largo=7, carriles=2, velocida_maxima=3,nombre="Camino secundaria")
-    camino3 = Camino(largo=6, carriles=1, velocida_maxima=2)
-
-    # Enlaces (como tenías)
-    camino1.agregar_camino(camino2)
-    camino1.agregar_camino(camino3)
-    camino3.agregar_camino(camino1)
-    camino2.agregar_camino(camino1)
-   
-
-    ciudad.agregar_camino(camino1)
-    ciudad.agregar_camino(camino2)
-    ciudad.agregar_camino(camino3)
-    
-    
-    carro=CarroMarca(camino1)
-
-    # Población inicial (igual a tu estilo)
-    
-    #CarroDescompuesto(camino1,[0,6])
-
-    camino1.agregar_carros_random(19)
-    camino2.agregar_carros_deportivos_random(3)
-
-
-    return ciudad
+# Tamaño de celdas (ajustable)
+TAM_CELDA = 40
+PADDING = 4
 
 def main(page: ft.Page):
     page.title = "Simulación de Tráfico con Flet (gráficos)"
     page.window_width = 1300
     page.window_height = 800
     page.padding = 20
+    
 
     # Estado UI/simulación
+    texto_info_colores = ft.Text()
     mi_ciudad = None
     stacks_por_camino = {}   # Camino -> Stack
     stats_por_camino = {}    # Camino -> Text
     carro_control = {}       # Carro -> Control (Container) posicionado en Stack
     carro_camino_actual = {} # Carro -> Camino del Stack en el que está su control
     loop_activo = False
-    historial_vel_ciudad = []   # [(t, vel_prom)] para gráfico línea
+    historial_vel_ciudad = []          # [(t, vel_prom_ciudad)]
+    historial_vel_por_camino = {}      # Camino -> [(t, vel_prom_camino)]
 
     # Contenedores principales
-    panel_caminos = ft.Column(spacing=25, expand=True)
+    panel_caminos = ft.Column(spacing=25, expand=True , scroll=True)
 
     # Panel de estadísticas gráficas
     panel_stats = ft.Column(spacing=20, width=450)
     txt_stats_ciudad = ft.Text("Ciudad | Carros: 0 | Velocidad prom.: 0.00", size=16, weight=ft.FontWeight.BOLD)
-
-    # Gráfico de barras: carros por camino
-    grafico_barras = ft.BarChart(
-        bar_groups=[],
-        border=ft.border.all(1, "black"),
-        left_axis=ft.ChartAxis(labels_size=30),
-        bottom_axis=ft.ChartAxis(labels_size=20),
-        tooltip_bgcolor="white",
-        expand=True,
-        height=250,
-    )
-
-    # Gráfico de línea: velocidad promedio ciudad
+    
     grafico_linea = ft.LineChart(
         data_series=[],
         border=ft.border.all(1, "black"),
@@ -89,10 +56,25 @@ def main(page: ft.Page):
         bottom_axis=ft.ChartAxis(labels_size=20),
         tooltip_bgcolor="white",
         expand=True,
-        height=250,
     )
 
-    panel_stats.controls.extend([txt_stats_ciudad, ft.Text("Carros por camino"), grafico_barras, ft.Text("Velocidad ciudad"), grafico_linea])
+    grafico_vel_caminos = ft.LineChart(
+        data_series=[],
+        border=ft.border.all(1, "black"),
+        left_axis=ft.ChartAxis(labels_size=30),
+        bottom_axis=ft.ChartAxis(labels_size=20),
+        tooltip_bgcolor="white",
+        expand=True,
+    )
+
+    panel_stats.controls.extend([
+        txt_stats_ciudad,
+        ft.Text("Velocidad ciudad"),
+        grafico_linea,
+        ft.Text("Velocidades por camino"),
+        grafico_vel_caminos,
+        texto_info_colores
+    ])
 
     layout = ft.Row(
         controls=[
@@ -111,9 +93,18 @@ def main(page: ft.Page):
         fondo = ft.Container(
             width=camino.largo * TAM_CELDA,
             height=camino.carriles * TAM_CELDA,
-            bgcolor="#e6e6e6",
+            bgcolor="#281a1a",
             border=ft.border.all(2, "black"),
         )
+
+        # Texto con nombre + datos del camino
+        texto_info = ft.Text(
+            f"{camino.nombre} | Vel.: {camino.hallar_velocidad_promedio():.2f} | Duración: {camino.hallar_duracion_camino():.2f}",
+            color=ft.colors.WHITE,
+            size=14,
+            weight=ft.FontWeight.BOLD
+        )
+
         # líneas de carril
         lineas = []
         for c in range(1, camino.carriles):
@@ -122,12 +113,18 @@ def main(page: ft.Page):
                 height=2,
                 top=c*TAM_CELDA,
                 left=0,
-                bgcolor="#c0c0c0",
+                bgcolor="#eaff00",
             )
             lineas.append(linea)
 
-        stk = ft.Stack([fondo] + lineas, width=fondo.width, height=fondo.height)
+        # Guardamos un diccionario de stats por camino
+        stats_por_camino[camino] = texto_info
+
+        # Armamos el Stack: texto arriba, fondo, líneas
+        stk = ft.Stack([fondo] + lineas + [ft.Container(content=texto_info)], 
+                       width=fondo.width, height=fondo.height+30)
         return stk
+
 
     def crear_ui_carro(carro):
         """Crea el control UI del carro y lo pone en el Stack correcto"""
@@ -137,7 +134,7 @@ def main(page: ft.Page):
             content=ft.Text(icono, color=ft.colors.BLACK,size=24),
             width=TAM_CELDA - 2*PADDING,
             height=TAM_CELDA - 2*PADDING,
-            bgcolor=ft.colors.TRANSPARENT, #carro.color,
+            bgcolor=ft.colors.TRANSPARENT,  # carro.color,
             border_radius=10,
             left=left,
             top=top,
@@ -166,18 +163,18 @@ def main(page: ft.Page):
     #   Actualización de estadísticas y UI
     # ------------------------------------------------
     def actualizar_stats():
-        nonlocal historial_vel_ciudad
+        nonlocal historial_vel_ciudad, historial_vel_por_camino
+
+        
         # Ciudad
         total = len(mi_ciudad.carros)
         vel_prom_ciudad = (sum(c.velocidad_actual for c in mi_ciudad.carros)/total) if total > 0 else 0
         txt_stats_ciudad.value = f"Ciudad | Carros: {total} | Velocidad prom.: {vel_prom_ciudad:.2f}"
 
-        # Actualizar historial de línea
-        historial_vel_ciudad.append((len(historial_vel_ciudad), vel_prom_ciudad))
-        if len(historial_vel_ciudad) > 20:  # mantener últimas 20
-            historial_vel_ciudad = historial_vel_ciudad
+        # Actualizar historial de línea (ciudad)
+        t = len(historial_vel_ciudad)
+        historial_vel_ciudad.append((t, vel_prom_ciudad))
 
-        
         grafico_linea.data_series = [
             ft.LineChartData(
                 data_points=[ft.LineChartDataPoint(x, y) for x, y in historial_vel_ciudad],
@@ -187,24 +184,40 @@ def main(page: ft.Page):
             )
         ]
 
-        # Actualizar barras (carros por camino)
-        bar_groups = []
-        etiquetas = []
-
+        # (NUEVO) Actualizar velocidades por camino
+        colores_caminos = [
+            ft.colors.RED, ft.colors.GREEN, ft.colors.ORANGE, ft.colors.PURPLE,
+            ft.colors.CYAN, ft.colors.PINK, ft.colors.BROWN, ft.colors.AMBER
+        ]
+        series = []
+        text = ""
         for i, camino in enumerate(mi_ciudad.caminos):
-            num_carros = len(camino.carros)
-            etiquetas.append(ft.ChartAxisLabel(value=i,label=ft.Text(camino.nombre)))
-            bar_groups.append(
-                ft.BarChartGroup(
-                    x=i,  # Usamos índice numérico
-                    bar_rods=[ft.BarChartRod(from_y=0, to_y=num_carros, width=30, color=ft.colors.GREEN)]
+            if len(camino.carros) > 0:
+                vel_prom_camino = sum(c.velocidad_actual for c in camino.carros)/len(camino.carros)
+            else:
+                vel_prom_camino = 0.0
+            # agregar punto a la serie del camino
+            historial_vel_por_camino.setdefault(camino, [])
+            historial_vel_por_camino[camino].append((t, vel_prom_camino))
+            if len(historial_vel_por_camino[camino]) > 200:
+                historial_vel_por_camino[camino] = historial_vel_por_camino[camino][-200:]
+            text += f"{camino.nombre} color : {colores_caminos[i % len(colores_caminos)]} "
+            series.append(
+                ft.LineChartData(
+                    data_points=[ft.LineChartDataPoint(x, y) for x, y in historial_vel_por_camino[camino]],
+                    stroke_width=2,
+                    color=colores_caminos[i % len(colores_caminos)],
+                    curved=True
                 )
             )
-
-        grafico_barras.bar_groups = bar_groups
-        grafico_barras.bottom_axis = ft.ChartAxis(labels=etiquetas)
+        texto_info_colores.value = text
+        grafico_vel_caminos.data_series = series
 
     def actualizar_ui_movimientos():
+        # actualizar los textos de velocidad y duración en cada stack
+        for camino, texto in stats_por_camino.items():
+            texto.value = f"{camino.nombre} | Vel.: {camino.hallar_velocidad_promedio():.2f} | Duración: {camino.hallar_duracion_camino():.2f}"
+        
         for carro in list(carro_control.keys()):
             if carro not in mi_ciudad.carros:
                 stk_actual = stacks_por_camino.get(carro_camino_actual.get(carro))
@@ -247,6 +260,10 @@ def main(page: ft.Page):
     btn_iniciar = ft.ElevatedButton("Iniciar", icon=ft.icons.PLAY_ARROW)
     btn_pausar = ft.ElevatedButton("Pausar", icon=ft.icons.PAUSE)
     btn_reiniciar = ft.ElevatedButton("Reiniciar", icon=ft.icons.RESTART_ALT)
+    forma_manejar = ft.Slider(min=0, max=100, divisions=10, value= 50,label="{value}%")
+    forma_manejar_label = ft.Container(content=
+                ft.Column([ft.Text("Forma de manejar (0=realista, 100=ireal)", size=12, weight=ft.FontWeight.BOLD),
+                           forma_manejar]), padding=ft.padding.only(left=10))
     async_task_ref = None
 
     def iniciar_simulacion(e=None):
@@ -266,14 +283,18 @@ def main(page: ft.Page):
         page.update()
 
     def reiniciar_simulacion(e=None):
-        nonlocal mi_ciudad, loop_activo, async_task_ref, historial_vel_ciudad
+        nonlocal mi_ciudad, loop_activo, async_task_ref, historial_vel_ciudad, historial_vel_por_camino
         loop_activo = False
         stacks_por_camino.clear()
         stats_por_camino.clear()
         carro_control.clear()
         carro_camino_actual.clear()
         historial_vel_ciudad.clear()
-        mi_ciudad = construir_ciudad_inicial()
+        historial_vel_por_camino.clear()
+        mi_ciudad = construir_ciudad_inicial(forma_manejar.value)
+        # reconstruir historial por camino
+        for cam in mi_ciudad.caminos:
+            historial_vel_por_camino[cam] = []
         poblar_ui_inicial()
         actualizar_stats()
         btn_iniciar.disabled = False
@@ -284,13 +305,17 @@ def main(page: ft.Page):
     btn_pausar.on_click = pausar_simulacion
     btn_reiniciar.on_click = reiniciar_simulacion
 
-    page.controls.insert(0, ft.Row([btn_iniciar, btn_pausar, btn_reiniciar], spacing=10))
+    page.controls.insert(0, ft.Row([btn_iniciar, btn_pausar, btn_reiniciar ,forma_manejar_label], spacing=10))
 
     # ------------------------------------------------
     #   Inicialización
     # ------------------------------------------------
-    mi_ciudad = construir_ciudad_inicial()
+    mi_ciudad = construir_ciudad_inicial(forma_manejar.value)
+    # inicializar historial por camino con las claves correctas
+    for cam in mi_ciudad.caminos:
+        historial_vel_por_camino[cam] = []
     poblar_ui_inicial()
     actualizar_stats()
     btn_pausar.disabled = True
     page.update()
+

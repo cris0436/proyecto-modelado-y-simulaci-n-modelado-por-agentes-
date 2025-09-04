@@ -1,6 +1,8 @@
 import random
 import math
 import time
+import asyncio
+import flet as ft
 
 # ==============================
 #   MODELO (tus reglas)
@@ -44,7 +46,7 @@ class Camino:
         self.caminos_enlases = []
         self.ciudad = None
 
-    def agregar_carros_deportivos_random(self, cantidad:int):
+    def agregar_carros_deportivos_random(self, cantidad:int ,forma_manejar=0.5):
         if cantidad > self.largo * self.carriles:
             raise Exception("Cantidad de carros excede la capacidad del camino")
         for _ in range(cantidad):
@@ -52,21 +54,23 @@ class Camino:
                 carril = random.randint(0, self.carriles - 1)
                 posicion = random.randint(0, self.largo - 1)
                 if self.camino[carril][posicion] == "0":
-                    nuevo_carro = CarroDeportivo(self, [carril, posicion])
+                    nuevo_carro = CarroDeportivo(self, [carril, posicion] ,forma_manejar)
                     self.carros.append(nuevo_carro)
                     if self.ciudad:
                         self.ciudad.agregar_carro(nuevo_carro)
                     break
 
-    def agregar_carros_random(self, cantidad:int):
+    def agregar_carros_random(self, cantidad:int ,forma_manejar=0.5):
         if cantidad > self.largo * self.carriles:
+            
             raise Exception("Cantidad de carros excede la capacidad del camino")
+        
         for _ in range(cantidad):
             while True:
                 carril = random.randint(0, self.carriles - 1)
                 posicion = random.randint(0, self.largo - 1)
                 if self.camino[carril][posicion] == "0":
-                    nuevo_carro = CarroMovimiento(self, [carril, posicion])
+                    nuevo_carro = CarroMovimiento(self, [carril, posicion],forma_manejar)
                     self.carros.append(nuevo_carro)
                     if self.ciudad:
                         self.ciudad.agregar_carro(nuevo_carro)
@@ -106,11 +110,15 @@ class Camino:
 
     def agregar_camino(self, camino_nuevo):
         self.caminos_enlases.append(camino_nuevo)
-
+     
+    def hallar_velocidad_promedio(self):
+        if len(self.carros) == 0:
+            return self.velocida_maxima
+        return sum(c.velocidad_actual for c in self.carros)/len(self.carros)
     def hallar_duracion_camino(self):
         
         if len(self.carros) == 0:
-            return self.largo * self.velocida_maxima
+            return self.largo / self.velocida_maxima
         
         velocidad_promedio = (sum(c.velocidad_actual for c in self.carros)/len(self.carros)) 
         
@@ -122,7 +130,7 @@ class Camino:
         if dencidad >= 0.7:
             velocidad_promedio *= 2  # Camino muy congestionado, duración aumenta       
 
-        return velocidad_promedio * self.largo
+        return self.largo/ velocidad_promedio 
 
 class Carro:
     def __str__(self):
@@ -139,10 +147,8 @@ class Carro:
             if camino.camino[posicion[0]][posicion[1]] == "0":
                 camino.camino[posicion[0]][posicion[1]] = self
                 self.posicion = posicion
-
-
             else:
-                raise Exception("La posición inicial no está libre")
+                pass
         else:
             self.camino.agregar_carro(self)
 
@@ -202,6 +208,9 @@ class Carro:
         return self.posicion
 
 class CarroMovimiento(Carro):
+    def __init__(self, camino, posicion=None, forma_manejar=0.5):
+        super().__init__(camino, posicion)
+        self.forma_manejar = forma_manejar
     def optener_icono(self):
         return "🚗"
     def mover_direccion(self, direccion):
@@ -351,9 +360,19 @@ class CarroMovimiento(Carro):
         distancia_segura = self.velocidades_distancias(self.velocidad_actual)
 
         if espacios_libres >= distancia_segura:
-            self.aumentar_velocidad()
-            distancia_movimiento = min(self.velocidad_actual, espacios_libres)
-            self.mover_adelante(distancia_movimiento)
+            if random.random() < self.forma_manejar: # emular dos formas de conducir y de 
+                self.aumentar_velocidad()
+                distancia_movimiento = min(self.velocidad_actual, espacios_libres)
+                self.mover_adelante(distancia_movimiento)
+            else:
+                distancia_movimiento = 0
+                if self.velocidad_actual > espacios_libres-distancia_segura:
+                    self.disminuir_velocidad(espacios_libres-distancia_segura)
+                    distancia_movimiento = espacios_libres-distancia_segura
+                else:
+                    self.aumentar_velocidad()
+                    distancia_movimiento = min(self.velocidad_actual, espacios_libres)
+                    self.mover_adelante(distancia_movimiento)
 
         elif derecha > espacios_libres or izquierda > espacios_libres:
             if derecha > izquierda and derecha > espacios_libres:
@@ -386,6 +405,8 @@ class CarroMarca(CarroMovimiento):
     caminos_recorridos = []
     timpo_ultimo_cambio = time.time()
 
+
+
     @property
     def camino(self):
             return self._camino
@@ -405,6 +426,7 @@ class CarroMarca(CarroMovimiento):
         return "🚙"
     
 
+
 class CarroDescompuesto(CarroMovimiento):
     def __init__(self, camino, posicion=None):
         super().__init__(camino, posicion)
@@ -412,7 +434,8 @@ class CarroDescompuesto(CarroMovimiento):
         self.camino.carros.append(self)
         if self.camino.ciudad:
             self.camino.ciudad.agregar_carro(self)
-
+    def mover_direccion(self, direccion):
+        pass  # No puede moverse
     def optener_icono(self):
         return "🚚"
     def aumentar_velocidad(self):
