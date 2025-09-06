@@ -147,10 +147,8 @@ class Carro:
             if camino.camino[posicion[0]][posicion[1]] == "0":
                 camino.camino[posicion[0]][posicion[1]] = self
                 self.posicion = posicion
-
-
             else:
-                raise Exception("La posición inicial no está libre")
+                pass
         else:
             self.camino.agregar_carro(self)
 
@@ -436,12 +434,14 @@ class CarroDescompuesto(CarroMovimiento):
         self.camino.carros.append(self)
         if self.camino.ciudad:
             self.camino.ciudad.agregar_carro(self)
-
+    def mover_direccion(self, direccion):
+        pass  # No puede moverse
     def optener_icono(self):
         return "🚚"
     def aumentar_velocidad(self):
         self.velocidad_actual = 0
         pass  # No puede aumentar velocidad
+
 # ==============================
 #   UI (Flet) con animaciones
 # ==============================
@@ -484,6 +484,24 @@ def construir_ciudad_inicial(forma_manejar=0.5):
 import flet as ft
 import asyncio
 from datetime import datetime
+from condifiones_iniciales import construir_ciudad_inicial
+
+# ==============================
+#   UI (Flet) con animaciones
+# ==============================
+
+TAM_CELDA = 40
+PADDING = 6  # margen interno para que el carro no “toque” los bordes
+
+def grid_to_px(carril, columna):
+    """Convierte posición [carril, columna] a coordenadas absolutas (left, top)"""
+    left = columna * TAM_CELDA + PADDING
+    top = carril * TAM_CELDA + PADDING
+    return left, top
+
+import flet as ft
+import asyncio
+from datetime import datetime
 
 # Tamaño de celdas (ajustable)
 TAM_CELDA = 40
@@ -497,6 +515,7 @@ def main(page: ft.Page):
     
 
     # Estado UI/simulación
+    texto_info_colores = ft.Text()
     mi_ciudad = None
     stacks_por_camino = {}   # Camino -> Stack
     stats_por_camino = {}    # Camino -> Text
@@ -507,7 +526,7 @@ def main(page: ft.Page):
     historial_vel_por_camino = {}      # Camino -> [(t, vel_prom_camino)]
 
     # Contenedores principales
-    panel_caminos = ft.Column(spacing=25, expand=True)
+    panel_caminos = ft.Column(spacing=25, expand=True , scroll=True)
 
     # Panel de estadísticas gráficas
     panel_stats = ft.Column(spacing=20, width=450)
@@ -536,7 +555,8 @@ def main(page: ft.Page):
         ft.Text("Velocidad ciudad"),
         grafico_linea,
         ft.Text("Velocidades por camino"),
-        grafico_vel_caminos
+        grafico_vel_caminos,
+        texto_info_colores
     ])
 
     layout = ft.Row(
@@ -627,6 +647,8 @@ def main(page: ft.Page):
     # ------------------------------------------------
     def actualizar_stats():
         nonlocal historial_vel_ciudad, historial_vel_por_camino
+
+        
         # Ciudad
         total = len(mi_ciudad.carros)
         vel_prom_ciudad = (sum(c.velocidad_actual for c in mi_ciudad.carros)/total) if total > 0 else 0
@@ -635,9 +657,7 @@ def main(page: ft.Page):
         # Actualizar historial de línea (ciudad)
         t = len(historial_vel_ciudad)
         historial_vel_ciudad.append((t, vel_prom_ciudad))
-        if len(historial_vel_ciudad) > 200:
-            historial_vel_ciudad = historial_vel_ciudad[-200:]
-        
+
         grafico_linea.data_series = [
             ft.LineChartData(
                 data_points=[ft.LineChartDataPoint(x, y) for x, y in historial_vel_ciudad],
@@ -653,6 +673,7 @@ def main(page: ft.Page):
             ft.colors.CYAN, ft.colors.PINK, ft.colors.BROWN, ft.colors.AMBER
         ]
         series = []
+        text = ""
         for i, camino in enumerate(mi_ciudad.caminos):
             if len(camino.carros) > 0:
                 vel_prom_camino = sum(c.velocidad_actual for c in camino.carros)/len(camino.carros)
@@ -663,7 +684,7 @@ def main(page: ft.Page):
             historial_vel_por_camino[camino].append((t, vel_prom_camino))
             if len(historial_vel_por_camino[camino]) > 200:
                 historial_vel_por_camino[camino] = historial_vel_por_camino[camino][-200:]
-
+            text += f"{camino.nombre} color : {colores_caminos[i % len(colores_caminos)]} "
             series.append(
                 ft.LineChartData(
                     data_points=[ft.LineChartDataPoint(x, y) for x, y in historial_vel_por_camino[camino]],
@@ -672,6 +693,7 @@ def main(page: ft.Page):
                     curved=True
                 )
             )
+        texto_info_colores.value = text
         grafico_vel_caminos.data_series = series
 
     def actualizar_ui_movimientos():
@@ -779,5 +801,6 @@ def main(page: ft.Page):
     actualizar_stats()
     btn_pausar.disabled = True
     page.update()
+
 
 ft.app(main)

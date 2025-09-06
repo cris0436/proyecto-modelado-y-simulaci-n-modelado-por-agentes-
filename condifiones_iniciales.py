@@ -1,8 +1,8 @@
 from modelo import Ciudad, Camino, CarroMarca ,CarroDeportivo ,CarroDescompuesto
 def construir_ciudad_inicial(forma_manejar=0.5):
     """Crea una ciudad de ejemplo (puedes ajustar libremente)"""
-    ciudad = Ciudad()
-    """    
+    """    ciudad = Ciudad()
+        
 
     camino1 = Camino(largo=10, carriles=2, velocida_maxima=2,nombre="Carretera principal")
     camino2 = Camino(largo=7, carriles=2, velocida_maxima=2,nombre="Camino secundaria")
@@ -21,10 +21,10 @@ def construir_ciudad_inicial(forma_manejar=0.5):
     CarroMarca(camino1)
     camino1.agregar_carros_random(9 ,forma_manejar)
     camino2.agregar_carros_deportivos_random(3 ,forma_manejar)"""
-
+    """
     
     # sumulacion haid line con autos descopuestos
-    """
+    ciudad = Ciudad()
     camino1 = Camino(largo=20, carriles=5, velocida_maxima=9,nombre="Carretera principal")
     camino2 = Camino(largo=9, carriles=2, velocida_maxima=2,nombre="Camino secundaria")
 
@@ -34,10 +34,7 @@ def construir_ciudad_inicial(forma_manejar=0.5):
     ciudad.agregar_camino(camino1)
     ciudad.agregar_camino(camino2)
 
-    CarroDescompuesto(camino1,[0,15])
-    CarroDescompuesto(camino1,[1,8])
-    CarroDescompuesto(camino1,[3,10])
-    CarroDescompuesto(camino1,[2,9])
+
 
     camino1.agregar_carros_random(30 ,forma_manejar)
     camino1.agregar_carros_deportivos_random(5 ,forma_manejar)
@@ -46,7 +43,8 @@ def construir_ciudad_inicial(forma_manejar=0.5):
 
 
     # paradoja de Bryce.
-
+    ciudad = Ciudad()
+    
     camino0 = Camino(largo=20, carriles=2, velocida_maxima=1,nombre="Camino 0")
 
     camino1 = Camino(largo=30, carriles=5, velocida_maxima=8,nombre="Camino 1")
@@ -61,8 +59,6 @@ def construir_ciudad_inicial(forma_manejar=0.5):
     camino0.agregar_camino(camino3)
     camino1.agregar_camino(camino2)
 
-    caminoConeccion.agregar_camino(camino3)
-    camino1.agregar_camino(caminoConeccion)
 
     camino3.agregar_camino(camino4)
 
